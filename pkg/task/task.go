@@ -3,6 +3,7 @@ package task
 import (
 	"fmt"
 	"math/rand/v2"
+	"time"
 )
 
 type Task struct {
@@ -15,6 +16,14 @@ type SystemError struct {
 	Message   string
 	Task      *Task
 	Retriable bool
+}
+
+type TaskResult struct {
+	Task     *Task
+	Err      *SystemError
+	Value    interface{}
+	Attempts int
+	Duration time.Duration
 }
 
 func (err *SystemError) Error() string {

@@ -27,9 +27,11 @@ func main() {
 
 	tasks := make(chan *task.Task, 20)
 	retryQueue := make(chan *task.Task, 20)
+	resultsQueue := make(chan *task.TaskResult, 20)
 
 	workerPool := sync.WaitGroup{}
 	retryPool := sync.WaitGroup{}
+	resultsWg := sync.WaitGroup{}
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(15*time.Second))
 	defer cancel()
@@ -46,16 +48,25 @@ func main() {
 	// spawn workers
 	for i := range numWorkers {
 		workerPool.Add(1)
-		go worker.SpawnWorker(ctx, i, tasks, retryQueue, &workerPool, logger)
+		go worker.SpawnWorker(ctx, i, tasks, retryQueue, resultsQueue, &workerPool, logger)
 	}
 	logger.Info("Workers started")
 
 	// spawn retry workers
 	for i := range numRetryWorkers {
 		retryPool.Add(1)
-		go worker.SpawnRetryWorker(ctx, i, retryQueue, &retryPool, logger)
+		go worker.SpawnRetryWorker(ctx, i, retryQueue, resultsQueue, &retryPool, logger)
 	}
 	logger.Info("RetryWorkers started")
+
+	// start results queue consumer
+	resultsWg.Add(1)
+	go func() {
+		defer resultsWg.Done()
+		for res := range resultsQueue {
+			logger.Info(fmt.Sprintf("Task: %s, Result: %+v", res.Task.Name, res))
+		}
+	}()
 
 	// queue tasks
 	for i := range numTasks {
@@ -71,4 +82,5 @@ func main() {
 	logger.Info("RetryWorkers completed")
 
 	logger.Info("All tasks completed, shutting down!")
+	close(resultsQueue)
 }
